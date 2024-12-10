@@ -1,0 +1,197 @@
+### Downloading and visualizing data from TCGA database using TCGAbiolinks package
+
+### Introduction
+
+This R workflow will download and visualize Transcription Profiling and Single Nucleotide Mutation data from the Colon Adenocarcinoma (TCGA-COAD) project using the `TCGAbiolinks` package. 
+
+
+### Goals
+
+This workflow will perform the following analyses:
+
+-   Build a query for expression data 
+-   Retrieve gene expression data 
+-   Download selected expression data
+-   Prepare and visualize expression data (FPKM) 
+-   Build a query for mutation data 
+-   Retrieve mutation data 
+-   Download selected mutation data
+-   Create a dashboard and an oncoplot
+
+### Setup
+
+As in a regular R script in RStudio, a single line of code can be run with Command-Enter (Mac OS) or Ctrl-Enter (Windows). Whole chunks of code can be run with Command(/Ctrl) + Shift + Enter **or** by clicking the green "\>" button in the top-right corner of the chunk. Alternatively, these options can also be implemented by selecting lines of code and choosing the desired option from the drop-down menu in the "Run" tab, in the top-right corner of the of Source section of RStudio.
+
+To comment or uncomment a series of lines, highlight the lines and use Command(/Ctrl) + Shift + C.
+
+```{css, echo = FALSE}
+pre, code {white-space:pre !important; overflow-x:auto}
+```
+
+
+```{r setup, include=FALSE}
+# when you "knit" this file, do you want the resulting PDF to print the code in each chunk (TRUE = yes)?
+knitr::opts_chunk$set(echo = TRUE)
+
+################################################################################
+# set your working directory
+####CHANGE THIS TO THE APPROPRIATE PATH
+knitr::opts_knit$set(root.dir = '~/Desktop/TCGAbiolinks/')
+################################################################################
+# note that outside of an Rmd code chunk, use `setwd()` to set the working directory in R
+```
+
+R packages `CGAbiolinks`, `tidyverse`, `maftools`, `pheatmap`, `SummarizedExperiment`, `sesame`, and `sesameData` are required for this workflow. 
+
+They can be installed using the following commands:
+
+```{r install packages, eval=F}
+#install.packages("TCGAbiolinks")
+#install.packages("tidyverse")
+#install.packages("maftools")
+#install.packages("pheatmap")
+#install.packages("SummarizedExperiment")
+#install.packages("sesame")
+#install.packages("sesameData")
+
+# If install.packages("packagename") command fails in newer versions of R uncomment and run the commands:
+# if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+# BiocManager::install("packagename")
+```
+
+Once installed, load the packages.
+
+```{r load libraries}
+library(TCGAbiolinks)
+library(tidyverse)
+library(maftools)
+library(pheatmap)
+library(SummarizedExperiment)
+library(sesame)
+library(sesameData)
+```
+
+### Build a query for expression data 
+
+```{r obtain the list of projects}
+# obtain the list of projects
+
+gdcprojects <- getGDCprojects()
+#View(gdcprojects)
+
+getProjectSummary('TCGA-COAD')
+```
+
+
+```{r build a query to select COAD expression data}
+# build a query to select COAD expression data
+
+query_TCGA <- GDCquery(project  = 'TCGA-COAD',
+                  data.category = 'Transcriptome Profiling')
+#View(query_TCGA)
+
+output_query_TCGA <- getResults(query_TCGA)
+#View(output_query_TCGA)
+```
+
+### Retrieve gene expression data 
+
+```{r build a query to retrieve gene expression data}
+# build a query to retrieve gene expression data 
+
+query_TCGA <- GDCquery(project  = 'TCGA-COAD', data.category = 'Transcriptome Profiling', experimental.strategy = 'RNA-Seq',
+                       workflow.type = 'STAR - Counts', access = 'open',
+                       barcode = c('TCGA-AA-3692-01A-01R-0905-07', 
+                                   'TCGA-AA-3662-11A-01R-1723-07', 
+                                   'TCGA-AA-A00L-01A-01R-A002-07'))
+getResults(query_TCGA)
+```
+
+### Download selected expression data
+
+```{r download selected expression data}
+# download selected expression data -- GDCdownload
+
+GDCdownload(query_TCGA)
+```
+
+### Prepare and visualize expression data (FPKM) 
+
+```{r prepare the queried data}
+# prepare the queried data 
+
+tcga_coad_data <- GDCprepare(query_TCGA, summarizedExperiment = TRUE)
+coad_matrix <- assay(tcga_coad_data, 'unstranded')
+#View(coad_matrix)
+```
+
+```{r obtain FPKM dataset}
+# to get the FPKM dataset
+
+coad_matrix <- assay(tcga_coad_data, 'fpkm_unstrand')
+#View(coad_matrix)
+```
+
+### Build a query for mutation data 
+
+```{r build a query for mutation data}
+# build a query for mutation data 
+
+query_TCGA <- GDCquery(project  = 'TCGA-COAD',
+                       data.category = 'Simple Nucleotide Variation')
+#View(query_TCGA)
+```
+
+
+```{r query and visualize selected mutation data}
+# query and visualize selected mutation data
+
+query_mutation <- GDCquery(project = 'TCGA-COAD',
+                           data.category = 'Simple Nucleotide Variation',
+                           access = 'open',
+                           barcode = c('TCGA-AA-3662-01A-01D-1719-10,TCGA-AA-3662-11A-01D-1719-10',
+                                        'TCGA-G4-6314-01A-11D-1719-10,TCGA-G4-6314-10A-01D-1720-10'))
+                           
+output_query_mutation <- getResults(query_mutation)
+#View(output_query_mutation)
+```
+
+### Download selected mutation data
+
+```{r  download selected  data }
+# download selected  data 
+
+GDCdownload(query_mutation)
+```
+
+### Create a dashboard and an oncoplot
+
+```{r maftools utilities to read and create dashboard}
+# maftools utilities to read and create dashboard
+
+maf <- GDCprepare(query_mutation, summarizedExperiment = TRUE)
+
+maftools.input <- read.maf(maf)
+```
+
+
+```{r create a dashboard}
+# create a dashboard
+
+plotmafSummary(maf = maftools.input,
+               addStat = 'median',
+               rmOutlier = TRUE,
+               dashboard = TRUE)
+```
+
+
+```{r create an oncoplot}
+# createan oncoplot
+
+oncoplot(maf = maftools.input,
+         top = 10,
+         removeNonMutated = TRUE)
+```
+
+
